@@ -102,7 +102,9 @@ def main(args):
 
         for line in content.splitlines(keepends=False):
             header = extract_header(line)
-            if (header is not None) and ((header_dir / header) in headers):
+            if (header is not None) and ((root / header) in headers):
+                yield from process_file(root / header, visited=visited)
+            elif (header is not None) and ((header_dir / header) in headers):
                 yield from process_file(header_dir / header, visited=visited)
             else:
                 yield line
@@ -110,7 +112,7 @@ def main(args):
     visited = set()
     result = TEMPLATE.substitute(
         headers="\n".join(
-            chain.from_iterable(process_file(file, visited=visited) for file in headers)
+            chain.from_iterable(process_file(file, visited=visited) for file in sorted(headers))
         ),
         sources="\n".join(
             chain.from_iterable(process_file(file, visited=visited) for file in sources)
