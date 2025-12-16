@@ -1731,15 +1731,6 @@ DOCTEST_CLANG_SUPPRESS_WARNING_POP
         void react() const;
     };
 
-    namespace assertAction {
-        enum Enum
-        {
-            nothing     = 0,
-            dbgbreak    = 1,
-            shouldthrow = 2
-        };
-    } // namespace assertAction
-
     DOCTEST_INTERFACE void failed_out_of_a_testing_context(const AssertData& ad);
 
     DOCTEST_INTERFACE bool decomp_assert(assertType::Enum at, const char* file, int line,
@@ -3325,23 +3316,6 @@ namespace {
         }
     }
 
-    struct Endianness
-    {
-        enum Arch
-        {
-            Big,
-            Little
-        };
-
-        static Arch which() {
-            int x = 1;
-            // casting any data pointer to char* is allowed
-            auto ptr = reinterpret_cast<char*>(&x);
-            if(*ptr)
-                return Little;
-            return Big;
-        }
-    };
 } // namespace
 
 namespace detail {
