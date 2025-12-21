@@ -61,57 +61,11 @@ DOCTEST_MSVC_SUPPRESS_WARNING(4623) // default constructor was implicitly define
 #include <doctest/parts/public/utility.h>
 #include <doctest/parts/public/platform.h>
 #include <doctest/parts/public/debugger.h>
-
-#ifdef DOCTEST_CONFIG_USE_STD_HEADERS
-DOCTEST_MAKE_STD_HEADERS_CLEAN_FROM_WARNINGS_ON_WALL_BEGIN
-#include <cstddef>
-#include <ostream>
-#include <istream>
-DOCTEST_MAKE_STD_HEADERS_CLEAN_FROM_WARNINGS_ON_WALL_END
-#else // DOCTEST_CONFIG_USE_STD_HEADERS
-
-// Forward declaring 'X' in namespace std is not permitted by the C++ Standard.
-DOCTEST_MSVC_SUPPRESS_WARNING_WITH_PUSH(4643)
-
-namespace std { // NOLINT(cert-dcl58-cpp)
-typedef decltype(nullptr) nullptr_t; // NOLINT(modernize-use-using)
-typedef decltype(sizeof(void*)) size_t; // NOLINT(modernize-use-using)
-template <class charT>
-struct char_traits;
-template <>
-struct char_traits<char>;
-template <class charT, class traits>
-class basic_ostream; // NOLINT(fuchsia-virtual-inheritance)
-typedef basic_ostream<char, char_traits<char>> ostream; // NOLINT(modernize-use-using)
-template<class traits>
-// NOLINTNEXTLINE
-basic_ostream<char, traits>& operator<<(basic_ostream<char, traits>&, const char*);
-template <class charT, class traits>
-class basic_istream;
-typedef basic_istream<char, char_traits<char>> istream; // NOLINT(modernize-use-using)
-template <class... Types>
-class tuple;
-#if DOCTEST_MSVC >= DOCTEST_COMPILER(19, 20, 0)
-// see this issue on why this is needed: https://github.com/doctest/doctest/issues/183
-template <class Ty>
-class allocator;
-template <class Elem, class Traits, class Alloc>
-class basic_string;
-using string = basic_string<char, char_traits<char>, allocator<char>>;
-#endif // VS 2019
-} // namespace std
-
-DOCTEST_MSVC_SUPPRESS_WARNING_POP
-
-#endif // DOCTEST_CONFIG_USE_STD_HEADERS
-
-#ifdef DOCTEST_CONFIG_INCLUDE_TYPE_TRAITS
-#include <type_traits>
-#endif // DOCTEST_CONFIG_INCLUDE_TYPE_TRAITS
+#include <doctest/parts/public/std/fwd.h>
+#include <doctest/parts/public/std/type_traits.h>
+#include <doctest/parts/public/std/utility.h>
 
 namespace doctest {
-
-using std::size_t;
 
 DOCTEST_INTERFACE extern bool is_running_in_test;
 
@@ -494,59 +448,6 @@ struct ContextOptions //!OCLINT too many fields
 };
 
 namespace detail {
-    namespace types {
-#ifdef DOCTEST_CONFIG_INCLUDE_TYPE_TRAITS
-        using namespace std;
-#else
-        template <bool COND, typename T = void>
-        struct enable_if { };
-
-        template <typename T>
-        struct enable_if<true, T> { using type = T; };
-
-        struct true_type { static DOCTEST_CONSTEXPR bool value = true; };
-        struct false_type { static DOCTEST_CONSTEXPR bool value = false; };
-
-        template <typename T> struct remove_reference { using type = T; };
-        template <typename T> struct remove_reference<T&> { using type = T; };
-        template <typename T> struct remove_reference<T&&> { using type = T; };
-
-        template <typename T> struct is_rvalue_reference : false_type { };
-        template <typename T> struct is_rvalue_reference<T&&> : true_type { };
-
-        template<typename T> struct remove_const { using type = T; };
-        template <typename T> struct remove_const<const T> { using type = T; };
-
-        // Compiler intrinsics
-        template <typename T> struct is_enum { static DOCTEST_CONSTEXPR bool value = __is_enum(T); };
-        template <typename T> struct underlying_type { using type = __underlying_type(T); };
-
-        template <typename T> struct is_pointer : false_type { };
-        template <typename T> struct is_pointer<T*> : true_type { };
-
-        template <typename T> struct is_array : false_type { };
-        // NOLINTNEXTLINE(*-avoid-c-arrays)
-        template <typename T, size_t SIZE> struct is_array<T[SIZE]> : true_type { };
-#endif
-    }
-
-    // <utility>
-    template <typename T>
-    T&& declval();
-
-    template <class T>
-    DOCTEST_CONSTEXPR_FUNC T&& forward(typename types::remove_reference<T>::type& t) DOCTEST_NOEXCEPT {
-        return static_cast<T&&>(t);
-    }
-
-    template <class T>
-    DOCTEST_CONSTEXPR_FUNC T&& forward(typename types::remove_reference<T>::type&& t) DOCTEST_NOEXCEPT {
-        return static_cast<T&&>(t);
-    }
-
-    template <typename T>
-    struct deferred_false : types::false_type { };
-
 // MSVS 2015 :(
 #if !DOCTEST_CLANG && defined(_MSC_VER) && _MSC_VER <= 1900
     template <typename T, typename = void>

@@ -521,7 +521,6 @@ namespace detail {
 } // doctest
 
 #endif
-
 #ifdef DOCTEST_CONFIG_USE_STD_HEADERS
 DOCTEST_MAKE_STD_HEADERS_CLEAN_FROM_WARNINGS_ON_WALL_BEGIN
 #include <cstddef>
@@ -565,13 +564,78 @@ DOCTEST_MSVC_SUPPRESS_WARNING_POP
 
 #endif // DOCTEST_CONFIG_USE_STD_HEADERS
 
+namespace doctest {
+  using std::size_t;
+}
 #ifdef DOCTEST_CONFIG_INCLUDE_TYPE_TRAITS
 #include <type_traits>
 #endif // DOCTEST_CONFIG_INCLUDE_TYPE_TRAITS
 
 namespace doctest {
+namespace detail {
+namespace types {
 
-using std::size_t;
+#ifdef DOCTEST_CONFIG_INCLUDE_TYPE_TRAITS
+  using namespace std;
+#else
+  template <bool COND, typename T = void>
+  struct enable_if { };
+
+  template <typename T>
+  struct enable_if<true, T> { using type = T; };
+
+  struct true_type { static DOCTEST_CONSTEXPR bool value = true; };
+  struct false_type { static DOCTEST_CONSTEXPR bool value = false; };
+
+  template <typename T> struct remove_reference { using type = T; };
+  template <typename T> struct remove_reference<T&> { using type = T; };
+  template <typename T> struct remove_reference<T&&> { using type = T; };
+
+  template <typename T> struct is_rvalue_reference : false_type { };
+  template <typename T> struct is_rvalue_reference<T&&> : true_type { };
+
+  template<typename T> struct remove_const { using type = T; };
+  template <typename T> struct remove_const<const T> { using type = T; };
+
+  // Compiler intrinsics
+  template <typename T> struct is_enum { static DOCTEST_CONSTEXPR bool value = __is_enum(T); };
+  template <typename T> struct underlying_type { using type = __underlying_type(T); };
+
+  template <typename T> struct is_pointer : false_type { };
+  template <typename T> struct is_pointer<T*> : true_type { };
+
+  template <typename T> struct is_array : false_type { };
+  // NOLINTNEXTLINE(*-avoid-c-arrays)
+  template <typename T, size_t SIZE> struct is_array<T[SIZE]> : true_type { };
+#endif
+
+} // namespace types
+} // namespace detail
+} // namespace doctest
+namespace doctest {
+namespace detail {
+
+  // <utility>
+  template <typename T>
+  T&& declval();
+
+  template <class T>
+  DOCTEST_CONSTEXPR_FUNC T&& forward(typename types::remove_reference<T>::type& t) DOCTEST_NOEXCEPT {
+      return static_cast<T&&>(t);
+  }
+
+  template <class T>
+  DOCTEST_CONSTEXPR_FUNC T&& forward(typename types::remove_reference<T>::type&& t) DOCTEST_NOEXCEPT {
+      return static_cast<T&&>(t);
+  }
+
+  template <typename T>
+  struct deferred_false : types::false_type { };
+
+} // namespace detail
+} // namespace doctest
+
+namespace doctest {
 
 DOCTEST_INTERFACE extern bool is_running_in_test;
 
@@ -954,59 +1018,6 @@ struct ContextOptions //!OCLINT too many fields
 };
 
 namespace detail {
-    namespace types {
-#ifdef DOCTEST_CONFIG_INCLUDE_TYPE_TRAITS
-        using namespace std;
-#else
-        template <bool COND, typename T = void>
-        struct enable_if { };
-
-        template <typename T>
-        struct enable_if<true, T> { using type = T; };
-
-        struct true_type { static DOCTEST_CONSTEXPR bool value = true; };
-        struct false_type { static DOCTEST_CONSTEXPR bool value = false; };
-
-        template <typename T> struct remove_reference { using type = T; };
-        template <typename T> struct remove_reference<T&> { using type = T; };
-        template <typename T> struct remove_reference<T&&> { using type = T; };
-
-        template <typename T> struct is_rvalue_reference : false_type { };
-        template <typename T> struct is_rvalue_reference<T&&> : true_type { };
-
-        template<typename T> struct remove_const { using type = T; };
-        template <typename T> struct remove_const<const T> { using type = T; };
-
-        // Compiler intrinsics
-        template <typename T> struct is_enum { static DOCTEST_CONSTEXPR bool value = __is_enum(T); };
-        template <typename T> struct underlying_type { using type = __underlying_type(T); };
-
-        template <typename T> struct is_pointer : false_type { };
-        template <typename T> struct is_pointer<T*> : true_type { };
-
-        template <typename T> struct is_array : false_type { };
-        // NOLINTNEXTLINE(*-avoid-c-arrays)
-        template <typename T, size_t SIZE> struct is_array<T[SIZE]> : true_type { };
-#endif
-    }
-
-    // <utility>
-    template <typename T>
-    T&& declval();
-
-    template <class T>
-    DOCTEST_CONSTEXPR_FUNC T&& forward(typename types::remove_reference<T>::type& t) DOCTEST_NOEXCEPT {
-        return static_cast<T&&>(t);
-    }
-
-    template <class T>
-    DOCTEST_CONSTEXPR_FUNC T&& forward(typename types::remove_reference<T>::type&& t) DOCTEST_NOEXCEPT {
-        return static_cast<T&&>(t);
-    }
-
-    template <typename T>
-    struct deferred_false : types::false_type { };
-
 // MSVS 2015 :(
 #if !DOCTEST_CLANG && defined(_MSC_VER) && _MSC_VER <= 1900
     template <typename T, typename = void>
