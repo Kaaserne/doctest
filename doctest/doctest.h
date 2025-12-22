@@ -3389,10 +3389,8 @@ namespace detail {
 #define DOCTEST_OPTIONS_PREFIX_DISPLAY ""
 #endif
 
+
 namespace doctest {
-
-bool is_running_in_test = false;
-
 namespace {
     using namespace detail;
 
@@ -3418,42 +3416,14 @@ namespace {
     throw_exception(std::logic_error(                                                              \
             __FILE__ ":" DOCTEST_TOSTR(__LINE__) ": Internal doctest error: " msg))
 #endif // DOCTEST_INTERNAL_ERROR
-
 } // namespace
 
-namespace detail {
-    DOCTEST_THREAD_LOCAL class
-    {
-        std::vector<std::streampos> stack;
-        std::stringstream           ss;
-
-    public:
-        std::ostream* push() {
-            stack.push_back(ss.tellp());
-            return &ss;
-        }
-
-        String pop() {
-            if (stack.empty())
-                DOCTEST_INTERNAL_ERROR("TLSS was empty when trying to pop!");
-
-            std::streampos pos = stack.back();
-            stack.pop_back();
-            unsigned sz = static_cast<unsigned>(ss.tellp() - pos);
-            ss.rdbuf()->pubseekpos(pos, std::ios::in | std::ios::out);
-            return String(ss, sz);
-        }
-    } g_oss;
-
-    std::ostream* tlssPush() {
-        return g_oss.push();
-    }
-
-    String tlssPop() {
-        return g_oss.pop();
-    }
+} // namespace doctest
 
 #ifndef DOCTEST_CONFIG_DISABLE
+
+namespace doctest {
+namespace detail {
 
 namespace timer_large_integer
 {
@@ -3502,6 +3472,16 @@ using ticks_t = timer_large_integer::type;
     private:
         ticks_t m_ticks = 0;
     };
+
+} // namespace detail
+} // namespace doctest
+
+#endif // DOCTEST_CONFIG_DISABLE
+
+#ifndef DOCTEST_CONFIG_DISABLE
+
+namespace doctest {
+namespace detail {
 
 #ifdef DOCTEST_CONFIG_NO_MULTITHREADING
     template <typename T>
@@ -3597,6 +3577,17 @@ using ticks_t = timer_large_integer::type;
     };
 #endif // DOCTEST_CONFIG_NO_MULTI_LANE_ATOMICS
 
+
+} // namespace detail
+} // namespace doctest
+
+#endif // DOCTEST_CONFIG_DISABLE
+
+#ifndef DOCTEST_CONFIG_DISABLE
+
+namespace doctest {
+namespace detail {
+
     // this holds both parameters from the command line and runtime data for tests
     struct ContextState : ContextOptions, TestRunStats, CurrentTestCaseStats
     {
@@ -3682,8 +3673,14 @@ using ticks_t = timer_large_integer::type;
     // could be a race or that there wouldn't be a race even if using the context directly
     DOCTEST_THREAD_LOCAL bool g_no_colors;
 
-#endif // DOCTEST_CONFIG_DISABLE
 } // namespace detail
+} // namespace doctest
+
+#endif // DOCTEST_CONFIG_DISABLE
+
+namespace doctest {
+
+bool is_running_in_test = false;
 
 namespace {
     void color_to_stream(std::ostream&, Color::Enum) DOCTEST_BRANCH_ON_DISABLED({}, ;)
@@ -6905,6 +6902,40 @@ String toString(IsNaN<double long> in) { return toString<double long>(in); }
 } // namespace doctest
 
 namespace doctest {
+namespace detail {
+
+    DOCTEST_THREAD_LOCAL class
+    {
+        std::vector<std::streampos> stack;
+        std::stringstream           ss;
+
+    public:
+        std::ostream* push() {
+            stack.push_back(ss.tellp());
+            return &ss;
+        }
+
+        String pop() {
+            if (stack.empty())
+                DOCTEST_INTERNAL_ERROR("TLSS was empty when trying to pop!");
+
+            std::streampos pos = stack.back();
+            stack.pop_back();
+            unsigned sz = static_cast<unsigned>(ss.tellp() - pos);
+            ss.rdbuf()->pubseekpos(pos, std::ios::in | std::ios::out);
+            return String(ss, sz);
+        }
+    } g_oss;
+
+    std::ostream* tlssPush() {
+        return g_oss.push();
+    }
+
+    String tlssPop() {
+        return g_oss.pop();
+    }
+
+} // namespace detail
 
     // case insensitive strcmp
     static int stricmp(const char* a, const char* b) {
