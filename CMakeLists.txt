@@ -66,6 +66,11 @@ if(${DOCTEST_WITH_MAIN_IN_STATIC_LIB})
     add_library(
         ${PROJECT_NAME}_with_main STATIC EXCLUDE_FROM_ALL
         ${doctest_parts_folder}/private/doctest.cpp
+        ${doctest_parts_folder}/private/assert/data.cpp
+        ${doctest_parts_folder}/private/assert/expression.cpp
+        ${doctest_parts_folder}/private/assert/handler.cpp
+        ${doctest_parts_folder}/private/assert/result.cpp
+        ${doctest_parts_folder}/private/assert/type.cpp
         ${doctest_parts_folder}/private/debugger.cpp
         ${doctest_parts_folder}/private/matchers/approx.cpp
         ${doctest_parts_folder}/private/matchers/contains.cpp

@@ -34,57 +34,6 @@ namespace Color {
     }
 } // namespace Color
 
-// clang-format off
-const char* assertString(assertType::Enum at) {
-    DOCTEST_MSVC_SUPPRESS_WARNING_WITH_PUSH(4061) // enum 'x' in switch of enum 'y' is not explicitly handled
-    #define DOCTEST_GENERATE_ASSERT_TYPE_CASE(assert_type) case assertType::DT_ ## assert_type: return #assert_type
-    #define DOCTEST_GENERATE_ASSERT_TYPE_CASES(assert_type) \
-        DOCTEST_GENERATE_ASSERT_TYPE_CASE(WARN_ ## assert_type); \
-        DOCTEST_GENERATE_ASSERT_TYPE_CASE(CHECK_ ## assert_type); \
-        DOCTEST_GENERATE_ASSERT_TYPE_CASE(REQUIRE_ ## assert_type)
-    switch(at) {
-        DOCTEST_GENERATE_ASSERT_TYPE_CASE(WARN);
-        DOCTEST_GENERATE_ASSERT_TYPE_CASE(CHECK);
-        DOCTEST_GENERATE_ASSERT_TYPE_CASE(REQUIRE);
-
-        DOCTEST_GENERATE_ASSERT_TYPE_CASES(FALSE);
-
-        DOCTEST_GENERATE_ASSERT_TYPE_CASES(THROWS);
-
-        DOCTEST_GENERATE_ASSERT_TYPE_CASES(THROWS_AS);
-
-        DOCTEST_GENERATE_ASSERT_TYPE_CASES(THROWS_WITH);
-
-        DOCTEST_GENERATE_ASSERT_TYPE_CASES(THROWS_WITH_AS);
-
-        DOCTEST_GENERATE_ASSERT_TYPE_CASES(NOTHROW);
-
-        DOCTEST_GENERATE_ASSERT_TYPE_CASES(EQ);
-        DOCTEST_GENERATE_ASSERT_TYPE_CASES(NE);
-        DOCTEST_GENERATE_ASSERT_TYPE_CASES(GT);
-        DOCTEST_GENERATE_ASSERT_TYPE_CASES(LT);
-        DOCTEST_GENERATE_ASSERT_TYPE_CASES(GE);
-        DOCTEST_GENERATE_ASSERT_TYPE_CASES(LE);
-
-        DOCTEST_GENERATE_ASSERT_TYPE_CASES(UNARY);
-        DOCTEST_GENERATE_ASSERT_TYPE_CASES(UNARY_FALSE);
-
-        default: DOCTEST_INTERNAL_ERROR("Tried stringifying invalid assert type!");
-    }
-    DOCTEST_MSVC_SUPPRESS_WARNING_POP
-}
-// clang-format on
-
-const char* failureString(assertType::Enum at) {
-    if(at & assertType::is_warn) //!OCLINT bitwise operator in conditional
-        return "WARNING";
-    if(at & assertType::is_check) //!OCLINT bitwise operator in conditional
-        return "ERROR";
-    if(at & assertType::is_require) //!OCLINT bitwise operator in conditional
-        return "FATAL ERROR";
-    return "";
-}
-
 DOCTEST_CLANG_SUPPRESS_WARNING_WITH_PUSH("-Wnull-dereference")
 DOCTEST_GCC_SUPPRESS_WARNING_WITH_PUSH("-Wnull-dereference")
 // depending on the current options this will remove the path of filenames
@@ -401,13 +350,6 @@ namespace detail {
     DOCTEST_MSVC_SUPPRESS_WARNING_POP
 
     Subcase::operator bool() const { return m_entered; }
-
-    Result::Result(bool passed, const String& decomposition)
-            : m_passed(passed)
-            , m_decomp(decomposition) {}
-
-    ExpressionDecomposer::ExpressionDecomposer(assertType::Enum at)
-            : m_at(at) {}
 
     TestSuite& TestSuite::operator*(const char* in) {
         m_test_suite = in;
@@ -965,30 +907,7 @@ namespace {
 #endif // DOCTEST_CONFIG_POSIX_SIGNALS || DOCTEST_CONFIG_WINDOWS_SEH
 } // namespace
 
-AssertData::AssertData(assertType::Enum at, const char* file, int line, const char* expr,
-    const char* exception_type, const StringContains& exception_string)
-    : m_test_case(g_cs->currentTest), m_at(at), m_file(file), m_line(line), m_expr(expr),
-    m_failed(true), m_threw(false), m_threw_as(false), m_exception_type(exception_type),
-    m_exception_string(exception_string) {
-#if DOCTEST_MSVC
-    if (m_expr[0] == ' ') // this happens when variadic macros are disabled under MSVC
-        ++m_expr;
-#endif // MSVC
-}
-
 namespace detail {
-    ResultBuilder::ResultBuilder(assertType::Enum at, const char* file, int line, const char* expr,
-                                 const char* exception_type, const String& exception_string)
-        : AssertData(at, file, line, expr, exception_type, exception_string) { }
-
-    ResultBuilder::ResultBuilder(assertType::Enum at, const char* file, int line, const char* expr,
-        const char* exception_type, const Contains& exception_string)
-        : AssertData(at, file, line, expr, exception_type, exception_string) { }
-
-    void ResultBuilder::setResult(const Result& res) {
-        m_decomp = res.m_decomp;
-        m_failed = !res.m_passed;
-    }
 
     void ResultBuilder::translateException() {
         m_threw     = true;
@@ -1023,31 +942,6 @@ namespace detail {
 
         return m_failed && isDebuggerActive() && !getContextOptions()->no_breaks &&
             (g_cs->currentTest == nullptr || !g_cs->currentTest->m_no_breaks); // break into debugger
-    }
-
-    void ResultBuilder::react() const {
-        if(m_failed && checkIfShouldThrow(m_at))
-            throwException();
-    }
-
-    void failed_out_of_a_testing_context(const AssertData& ad) {
-        if(g_cs->ah)
-            g_cs->ah(ad);
-        else
-            std::abort();
-    }
-
-    bool decomp_assert(assertType::Enum at, const char* file, int line, const char* expr,
-                       const Result& result) {
-        bool failed = !result.m_passed;
-
-        // ###################################################################################
-        // IF THE DEBUGGER BREAKS HERE - GO 1 LEVEL UP IN THE CALLSTACK FOR THE FAILING ASSERT
-        // THIS IS THE EFFECT OF HAVING 'DOCTEST_CONFIG_SUPER_FAST_ASSERTS' DEFINED
-        // ###################################################################################
-        DOCTEST_ASSERT_OUT_OF_TESTS(result.m_decomp);
-        DOCTEST_ASSERT_IN_TESTS(result.m_decomp);
-        return !failed;
     }
 
     MessageBuilder::MessageBuilder(const char* file, int line, assertType::Enum severity) {
