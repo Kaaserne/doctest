@@ -310,21 +310,6 @@ using ticks_t = timer_large_integer::type;
 #endif // DOCTEST_CONFIG_DISABLE
 } // namespace detail
 
-Contains::Contains(const String& str) : string(str) { }
-
-bool Contains::checkWith(const String& other) const {
-    return strstr(other.c_str(), string.c_str()) != nullptr;
-}
-
-String toString(const Contains& in) {
-    return "Contains( " + in.string + " )";
-}
-
-bool operator==(const String& lhs, const Contains& rhs) { return rhs.checkWith(lhs); }
-bool operator==(const Contains& lhs, const String& rhs) { return lhs.checkWith(rhs); }
-bool operator!=(const String& lhs, const Contains& rhs) { return !rhs.checkWith(lhs); }
-bool operator!=(const Contains& lhs, const String& rhs) { return !lhs.checkWith(rhs); }
-
 namespace {
     void color_to_stream(std::ostream&, Color::Enum) DOCTEST_BRANCH_ON_DISABLED({}, ;)
 } // namespace
@@ -443,63 +428,7 @@ bool SubcaseSignature::operator<(const SubcaseSignature& other) const {
 
 DOCTEST_DEFINE_INTERFACE(IContextScope)
 
-Approx::Approx(double value)
-        : m_epsilon(static_cast<double>(std::numeric_limits<float>::epsilon()) * 100)
-        , m_scale(1.0)
-        , m_value(value) {}
-
-Approx Approx::operator()(double value) const {
-    Approx approx(value);
-    approx.epsilon(m_epsilon);
-    approx.scale(m_scale);
-    return approx;
-}
-
-Approx& Approx::epsilon(double newEpsilon) {
-    m_epsilon = newEpsilon;
-    return *this;
-}
-Approx& Approx::scale(double newScale) {
-    m_scale = newScale;
-    return *this;
-}
-
-bool operator==(double lhs, const Approx& rhs) {
-    // Thanks to Richard Harris for his help refining this formula
-    return std::fabs(lhs - rhs.m_value) <
-           rhs.m_epsilon * (rhs.m_scale + std::max<double>(std::fabs(lhs), std::fabs(rhs.m_value)));
-}
-bool operator==(const Approx& lhs, double rhs) { return operator==(rhs, lhs); }
-bool operator!=(double lhs, const Approx& rhs) { return !operator==(lhs, rhs); }
-bool operator!=(const Approx& lhs, double rhs) { return !operator==(rhs, lhs); }
-bool operator<=(double lhs, const Approx& rhs) { return lhs < rhs.m_value || lhs == rhs; }
-bool operator<=(const Approx& lhs, double rhs) { return lhs.m_value < rhs || lhs == rhs; }
-bool operator>=(double lhs, const Approx& rhs) { return lhs > rhs.m_value || lhs == rhs; }
-bool operator>=(const Approx& lhs, double rhs) { return lhs.m_value > rhs || lhs == rhs; }
-bool operator<(double lhs, const Approx& rhs) { return lhs < rhs.m_value && lhs != rhs; }
-bool operator<(const Approx& lhs, double rhs) { return lhs.m_value < rhs && lhs != rhs; }
-bool operator>(double lhs, const Approx& rhs) { return lhs > rhs.m_value && lhs != rhs; }
-bool operator>(const Approx& lhs, double rhs) { return lhs.m_value > rhs && lhs != rhs; }
-
-String toString(const Approx& in) {
-    return "Approx( " + doctest::toString(in.m_value) + " )";
-}
 const ContextOptions* getContextOptions() { return DOCTEST_BRANCH_ON_DISABLED(nullptr, g_cs); }
-
-DOCTEST_MSVC_SUPPRESS_WARNING_WITH_PUSH(4738)
-template <typename F>
-IsNaN<F>::operator bool() const {
-    return std::isnan(value) ^ flipped;
-}
-DOCTEST_MSVC_SUPPRESS_WARNING_POP
-template struct DOCTEST_INTERFACE_DEF IsNaN<float>;
-template struct DOCTEST_INTERFACE_DEF IsNaN<double>;
-template struct DOCTEST_INTERFACE_DEF IsNaN<long double>;
-template <typename F>
-String toString(IsNaN<F> in) { return String(in.flipped ? "! " : "") + "IsNaN( " + doctest::toString(in.value) + " )"; }
-String toString(IsNaN<float> in) { return toString<float>(in); }
-String toString(IsNaN<double> in) { return toString<double>(in); }
-String toString(IsNaN<double long> in) { return toString<double long>(in); }
 
 } // namespace doctest
 
