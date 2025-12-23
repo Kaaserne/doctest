@@ -2063,6 +2063,123 @@ namespace detail {
 } // namespace doctest
 
 #endif // DOCTEST_CONFIG_DISABLE
+namespace doctest {
+
+namespace TestCaseFailureReason {
+    enum Enum
+    {
+        None                     = 0,
+        AssertFailure            = 1,   // an assertion has failed in the test case
+        Exception                = 2,   // test case threw an exception
+        Crash                    = 4,   // a crash...
+        TooManyFailedAsserts     = 8,   // the abort-after option
+        Timeout                  = 16,  // see the timeout decorator
+        ShouldHaveFailedButDidnt = 32,  // see the should_fail decorator
+        ShouldHaveFailedAndDid   = 64,  // see the should_fail decorator
+        DidntFailExactlyNumTimes = 128, // see the expected_failures decorator
+        FailedExactlyNumTimes    = 256, // see the expected_failures decorator
+        CouldHaveFailedAndDid    = 512  // see the may_fail decorator
+    };
+} // namespace TestCaseFailureReason
+
+    struct DOCTEST_INTERFACE CurrentTestCaseStats
+    {
+        int    numAssertsCurrentTest;
+        int    numAssertsFailedCurrentTest;
+        double seconds;
+        int    failure_flags; // use TestCaseFailureReason::Enum
+        bool   testCaseSuccess;
+    };
+
+    struct DOCTEST_INTERFACE TestCaseException
+    {
+        String error_string;
+        bool   is_crash;
+    };
+
+    struct DOCTEST_INTERFACE TestRunStats
+    {
+        unsigned numTestCases;
+        unsigned numTestCasesPassingFilters;
+        unsigned numTestSuitesPassingFilters;
+        unsigned numTestCasesFailed;
+        int      numAsserts;
+        int      numAssertsFailed;
+    };
+
+    struct QueryData
+    {
+        const TestRunStats*  run_stats = nullptr;
+        const TestCaseData** data      = nullptr;
+        unsigned             num_data  = 0;
+    };
+
+    struct DOCTEST_INTERFACE IReporter
+    {
+        // The constructor has to accept "const ContextOptions&" as a single argument
+        // which has most of the options for the run + a pointer to the stdout stream
+        // Reporter(const ContextOptions& in)
+
+        // called when a query should be reported (listing test cases, printing the version, etc.)
+        virtual void report_query(const QueryData&) = 0;
+
+        // called when the whole test run starts
+        virtual void test_run_start() = 0;
+        // called when the whole test run ends (caching a pointer to the input doesn't make sense here)
+        virtual void test_run_end(const TestRunStats&) = 0;
+
+        // called when a test case is started (safe to cache a pointer to the input)
+        virtual void test_case_start(const TestCaseData&) = 0;
+        // called when a test case is reentered because of unfinished subcases (safe to cache a pointer to the input)
+        virtual void test_case_reenter(const TestCaseData&) = 0;
+        // called when a test case has ended
+        virtual void test_case_end(const CurrentTestCaseStats&) = 0;
+
+        // called when an exception is thrown from the test case (or it crashes)
+        virtual void test_case_exception(const TestCaseException&) = 0;
+
+        // called whenever a subcase is entered (don't cache pointers to the input)
+        virtual void subcase_start(const SubcaseSignature&) = 0;
+        // called whenever a subcase is exited (don't cache pointers to the input)
+        virtual void subcase_end() = 0;
+
+        // called for each assert (don't cache pointers to the input)
+        virtual void log_assert(const AssertData&) = 0;
+        // called for each message (don't cache pointers to the input)
+        virtual void log_message(const MessageData&) = 0;
+
+        // called when a test case is skipped either because it doesn't pass the filters, has a skip decorator
+        // or isn't in the execution range (between first and last) (safe to cache a pointer to the input)
+        virtual void test_case_skipped(const TestCaseData&) = 0;
+
+        DOCTEST_DECLARE_INTERFACE(IReporter)
+
+        // can obtain all currently active contexts and stringify them if one wishes to do so
+        static int                         get_num_active_contexts();
+        static const IContextScope* const* get_active_contexts();
+
+        // can iterate through contexts which have been stringified automatically in their destructors when an exception has been thrown
+        static int           get_num_stringified_contexts();
+        static const String* get_stringified_contexts();
+    };
+
+namespace detail {
+    using reporterCreatorFunc =  IReporter* (*)(const ContextOptions&);
+
+    DOCTEST_INTERFACE void registerReporterImpl(const char* name, int prio, reporterCreatorFunc c, bool isReporter);
+
+    template <typename Reporter>
+    IReporter* reporterCreator(const ContextOptions& o) {
+        return new Reporter(o);
+    }
+} // namespace detail
+
+    template <typename Reporter>
+    int registerReporter(const char* name, int priority, bool isReporter) {
+        detail::registerReporterImpl(name, priority, detail::reporterCreator<Reporter>, isReporter);
+        return 0;
+    }
+} // namespace doctest
 
 namespace doctest {
 #ifndef DOCTEST_CONFIG_DISABLE
@@ -2109,7 +2226,6 @@ DOCTEST_MSVC_SUPPRESS_WARNING_POP
         void react();
     };
 } // namespace detail
-
 } // namespace doctest
 
 namespace doctest {
@@ -2155,121 +2271,6 @@ public:
 
     int run();
 };
-
-namespace TestCaseFailureReason {
-    enum Enum
-    {
-        None                     = 0,
-        AssertFailure            = 1,   // an assertion has failed in the test case
-        Exception                = 2,   // test case threw an exception
-        Crash                    = 4,   // a crash...
-        TooManyFailedAsserts     = 8,   // the abort-after option
-        Timeout                  = 16,  // see the timeout decorator
-        ShouldHaveFailedButDidnt = 32,  // see the should_fail decorator
-        ShouldHaveFailedAndDid   = 64,  // see the should_fail decorator
-        DidntFailExactlyNumTimes = 128, // see the expected_failures decorator
-        FailedExactlyNumTimes    = 256, // see the expected_failures decorator
-        CouldHaveFailedAndDid    = 512  // see the may_fail decorator
-    };
-} // namespace TestCaseFailureReason
-
-struct DOCTEST_INTERFACE CurrentTestCaseStats
-{
-    int    numAssertsCurrentTest;
-    int    numAssertsFailedCurrentTest;
-    double seconds;
-    int    failure_flags; // use TestCaseFailureReason::Enum
-    bool   testCaseSuccess;
-};
-
-struct DOCTEST_INTERFACE TestCaseException
-{
-    String error_string;
-    bool   is_crash;
-};
-
-struct DOCTEST_INTERFACE TestRunStats
-{
-    unsigned numTestCases;
-    unsigned numTestCasesPassingFilters;
-    unsigned numTestSuitesPassingFilters;
-    unsigned numTestCasesFailed;
-    int      numAsserts;
-    int      numAssertsFailed;
-};
-
-struct QueryData
-{
-    const TestRunStats*  run_stats = nullptr;
-    const TestCaseData** data      = nullptr;
-    unsigned             num_data  = 0;
-};
-
-struct DOCTEST_INTERFACE IReporter
-{
-    // The constructor has to accept "const ContextOptions&" as a single argument
-    // which has most of the options for the run + a pointer to the stdout stream
-    // Reporter(const ContextOptions& in)
-
-    // called when a query should be reported (listing test cases, printing the version, etc.)
-    virtual void report_query(const QueryData&) = 0;
-
-    // called when the whole test run starts
-    virtual void test_run_start() = 0;
-    // called when the whole test run ends (caching a pointer to the input doesn't make sense here)
-    virtual void test_run_end(const TestRunStats&) = 0;
-
-    // called when a test case is started (safe to cache a pointer to the input)
-    virtual void test_case_start(const TestCaseData&) = 0;
-    // called when a test case is reentered because of unfinished subcases (safe to cache a pointer to the input)
-    virtual void test_case_reenter(const TestCaseData&) = 0;
-    // called when a test case has ended
-    virtual void test_case_end(const CurrentTestCaseStats&) = 0;
-
-    // called when an exception is thrown from the test case (or it crashes)
-    virtual void test_case_exception(const TestCaseException&) = 0;
-
-    // called whenever a subcase is entered (don't cache pointers to the input)
-    virtual void subcase_start(const SubcaseSignature&) = 0;
-    // called whenever a subcase is exited (don't cache pointers to the input)
-    virtual void subcase_end() = 0;
-
-    // called for each assert (don't cache pointers to the input)
-    virtual void log_assert(const AssertData&) = 0;
-    // called for each message (don't cache pointers to the input)
-    virtual void log_message(const MessageData&) = 0;
-
-    // called when a test case is skipped either because it doesn't pass the filters, has a skip decorator
-    // or isn't in the execution range (between first and last) (safe to cache a pointer to the input)
-    virtual void test_case_skipped(const TestCaseData&) = 0;
-
-    DOCTEST_DECLARE_INTERFACE(IReporter)
-
-    // can obtain all currently active contexts and stringify them if one wishes to do so
-    static int                         get_num_active_contexts();
-    static const IContextScope* const* get_active_contexts();
-
-    // can iterate through contexts which have been stringified automatically in their destructors when an exception has been thrown
-    static int           get_num_stringified_contexts();
-    static const String* get_stringified_contexts();
-};
-
-namespace detail {
-    using reporterCreatorFunc =  IReporter* (*)(const ContextOptions&);
-
-    DOCTEST_INTERFACE void registerReporterImpl(const char* name, int prio, reporterCreatorFunc c, bool isReporter);
-
-    template <typename Reporter>
-    IReporter* reporterCreator(const ContextOptions& o) {
-        return new Reporter(o);
-    }
-} // namespace detail
-
-template <typename Reporter>
-int registerReporter(const char* name, int priority, bool isReporter) {
-    detail::registerReporterImpl(name, priority, detail::reporterCreator<Reporter>, isReporter);
-    return 0;
-}
 } // namespace doctest
 
 #ifdef DOCTEST_CONFIG_ASSERTS_RETURN_VALUES
@@ -4120,12 +4121,6 @@ namespace detail {
 #define DOCTEST_CONFIG_OPTIONS_FILE_PREFIX_SEPARATOR ':'
 #endif
 
-#ifdef DOCTEST_CONFIG_NO_UNPREFIXED_OPTIONS
-#define DOCTEST_OPTIONS_PREFIX_DISPLAY DOCTEST_CONFIG_OPTIONS_PREFIX
-#else
-#define DOCTEST_OPTIONS_PREFIX_DISPLAY ""
-#endif
-
 
 #ifndef DOCTEST_CONFIG_DISABLE
 
@@ -4151,6 +4146,32 @@ namespace detail {
     String translateActiveException();
 
 } // namespace detail
+} // namespace doctest
+
+#endif // DOCTEST_CONFIG_DISABLE
+
+#ifndef DOCTEST_CONFIG_DISABLE
+
+namespace doctest {
+namespace {
+    // the int (priority) is part of the key for automatic sorting - sadly one can register a
+    // reporter with a duplicate name and a different priority but hopefully that won't happen often :|
+    using reporterMap = std::map<std::pair<int, String>, reporterCreatorFunc>;
+
+    reporterMap& getReporters() {
+        static reporterMap data;
+        return data;
+    }
+    reporterMap& getListeners() {
+        static reporterMap data;
+        return data;
+    }
+} // namespace
+
+#define DOCTEST_ITERATE_THROUGH_REPORTERS(function, ...)                                           \
+    for(auto& curr_rep : g_cs->reporters_currently_used)                                           \
+    curr_rep->function(__VA_ARGS__)
+
 } // namespace doctest
 
 #endif // DOCTEST_CONFIG_DISABLE
@@ -4216,38 +4237,10 @@ void Context::setAsDefaultForAssertsOutOfTestCases() {}
 void Context::setAssertHandler(detail::assert_handler) {}
 void Context::setCout(std::ostream*) {}
 int  Context::run() { return 0; }
-
-int                         IReporter::get_num_active_contexts() { return 0; }
-const IContextScope* const* IReporter::get_active_contexts() { return nullptr; }
-int                         IReporter::get_num_stringified_contexts() { return 0; }
-const String*               IReporter::get_stringified_contexts() { return nullptr; }
-
-int registerReporter(const char*, int, IReporter*) { return 0; }
-
 } // namespace doctest
 #else // DOCTEST_CONFIG_DISABLE
 
 namespace doctest {
-namespace {
-    // the int (priority) is part of the key for automatic sorting - sadly one can register a
-    // reporter with a duplicate name and a different priority but hopefully that won't happen often :|
-    using reporterMap = std::map<std::pair<int, String>, reporterCreatorFunc>;
-
-    reporterMap& getReporters() {
-        static reporterMap data;
-        return data;
-    }
-    reporterMap& getListeners() {
-        static reporterMap data;
-        return data;
-    }
-} // namespace
-namespace detail {
-#define DOCTEST_ITERATE_THROUGH_REPORTERS(function, ...)                                           \
-    for(auto& curr_rep : g_cs->reporters_currently_used)                                           \
-    curr_rep->function(__VA_ARGS__)
-} // namespace detail
-
 namespace {
     using namespace detail;
     // matching of a string against a wildcard mask (case sensitivity configurable) taken from
@@ -4620,13 +4613,6 @@ namespace {
 namespace {
     using namespace detail;
 
-#ifdef DOCTEST_PLATFORM_WINDOWS
-#define DOCTEST_OUTPUT_DEBUG_STRING(text) ::OutputDebugStringA(text)
-#else
-    // TODO: integration with XCode and other IDEs
-#define DOCTEST_OUTPUT_DEBUG_STRING(text)
-#endif // Platform
-
     void addAssert(assertType::Enum at) {
         if((at & assertType::is_warn) == 0) //!OCLINT bitwise operator in conditional
             g_cs->numAssertsCurrentTest_atomic++;
@@ -4731,8 +4717,13 @@ namespace detail {
             throwException();
     }
 } // namespace detail
-namespace {
-    using namespace detail;
+} // namespace doctest
+
+
+#ifndef DOCTEST_CONFIG_DISABLE
+
+namespace doctest {
+namespace detail {
 
     // clang-format off
 
@@ -4832,293 +4823,16 @@ namespace {
         std::ostream& m_os;
     };
 
-// =================================================================================================
-// The following code has been taken verbatim from Catch2/include/internal/catch_xmlwriter.h/cpp
-// This is done so cherry-picking bug fixes is trivial - even the style/formatting is untouched.
-// =================================================================================================
-
-using uchar = unsigned char;
-
-namespace {
-
-    size_t trailingBytes(unsigned char c) {
-        if ((c & 0xE0) == 0xC0) {
-            return 2;
-        }
-        if ((c & 0xF0) == 0xE0) {
-            return 3;
-        }
-        if ((c & 0xF8) == 0xF0) {
-            return 4;
-        }
-        DOCTEST_INTERNAL_ERROR("Invalid multibyte utf-8 start byte encountered");
-    }
-
-    uint32_t headerValue(unsigned char c) {
-        if ((c & 0xE0) == 0xC0) {
-            return c & 0x1F;
-        }
-        if ((c & 0xF0) == 0xE0) {
-            return c & 0x0F;
-        }
-        if ((c & 0xF8) == 0xF0) {
-            return c & 0x07;
-        }
-        DOCTEST_INTERNAL_ERROR("Invalid multibyte utf-8 start byte encountered");
-    }
-
-    void hexEscapeChar(std::ostream& os, unsigned char c) {
-        std::ios_base::fmtflags f(os.flags());
-        os << "\\x"
-            << std::uppercase << std::hex << std::setfill('0') << std::setw(2)
-            << static_cast<int>(c);
-        os.flags(f);
-    }
-
-} // anonymous namespace
-
-    XmlEncode::XmlEncode( std::string const& str, ForWhat forWhat )
-    :   m_str( str ),
-        m_forWhat( forWhat )
-    {}
-
-    void XmlEncode::encodeTo( std::ostream& os ) const {
-        // Apostrophe escaping not necessary if we always use " to write attributes
-        // (see: https://www.w3.org/TR/xml/#syntax)
-
-        for( std::size_t idx = 0; idx < m_str.size(); ++ idx ) {
-            uchar c = m_str[idx];
-            switch (c) {
-            case '<':   os << "&lt;"; break;
-            case '&':   os << "&amp;"; break;
-
-            case '>':
-                // See: https://www.w3.org/TR/xml/#syntax
-                if (idx > 2 && m_str[idx - 1] == ']' && m_str[idx - 2] == ']')
-                    os << "&gt;";
-                else
-                    os << c;
-                break;
-
-            case '\"':
-                if (m_forWhat == ForAttributes)
-                    os << "&quot;";
-                else
-                    os << c;
-                break;
-
-            default:
-                // Check for control characters and invalid utf-8
-
-                // Escape control characters in standard ascii
-                // see https://stackoverflow.com/questions/404107/why-are-control-characters-illegal-in-xml-1-0
-                if (c < 0x09 || (c > 0x0D && c < 0x20) || c == 0x7F) {
-                    hexEscapeChar(os, c);
-                    break;
-                }
-
-                // Plain ASCII: Write it to stream
-                if (c < 0x7F) {
-                    os << c;
-                    break;
-                }
-
-                // UTF-8 territory
-                // Check if the encoding is valid and if it is not, hex escape bytes.
-                // Important: We do not check the exact decoded values for validity, only the encoding format
-                // First check that this bytes is a valid lead byte:
-                // This means that it is not encoded as 1111 1XXX
-                // Or as 10XX XXXX
-                if (c <  0xC0 ||
-                    c >= 0xF8) {
-                    hexEscapeChar(os, c);
-                    break;
-                }
-
-                auto encBytes = trailingBytes(c);
-                // Are there enough bytes left to avoid accessing out-of-bounds memory?
-                if (idx + encBytes - 1 >= m_str.size()) {
-                    hexEscapeChar(os, c);
-                    break;
-                }
-                // The header is valid, check data
-                // The next encBytes bytes must together be a valid utf-8
-                // This means: bitpattern 10XX XXXX and the extracted value is sane (ish)
-                bool valid = true;
-                uint32_t value = headerValue(c);
-                for (std::size_t n = 1; n < encBytes; ++n) {
-                    uchar nc = m_str[idx + n];
-                    valid &= ((nc & 0xC0) == 0x80);
-                    value = (value << 6) | (nc & 0x3F);
-                }
-
-                if (
-                    // Wrong bit pattern of following bytes
-                    (!valid) ||
-                    // Overlong encodings
-                    (value < 0x80) ||
-                    (                 value < 0x800   && encBytes > 2) || // removed "0x80 <= value &&" because redundant
-                    (0x800 < value && value < 0x10000 && encBytes > 3) ||
-                    // Encoded value out of range
-                    (value >= 0x110000)
-                    ) {
-                    hexEscapeChar(os, c);
-                    break;
-                }
-
-                // If we got here, this is in fact a valid(ish) utf-8 sequence
-                for (std::size_t n = 0; n < encBytes; ++n) {
-                    os << m_str[idx + n];
-                }
-                idx += encBytes - 1;
-                break;
-            }
-        }
-    }
-
-    std::ostream& operator << ( std::ostream& os, XmlEncode const& xmlEncode ) {
-        xmlEncode.encodeTo( os );
-        return os;
-    }
-
-    XmlWriter::ScopedElement::ScopedElement( XmlWriter* writer )
-    :   m_writer( writer )
-    {}
-
-    XmlWriter::ScopedElement::ScopedElement( ScopedElement&& other ) DOCTEST_NOEXCEPT
-    :   m_writer( other.m_writer ){
-        other.m_writer = nullptr;
-    }
-    XmlWriter::ScopedElement& XmlWriter::ScopedElement::operator=( ScopedElement&& other ) DOCTEST_NOEXCEPT {
-        if ( m_writer ) {
-            m_writer->endElement();
-        }
-        m_writer = other.m_writer;
-        other.m_writer = nullptr;
-        return *this;
-    }
-
-
-    XmlWriter::ScopedElement::~ScopedElement() {
-        if( m_writer )
-            m_writer->endElement();
-    }
-
-    XmlWriter::ScopedElement& XmlWriter::ScopedElement::writeText( std::string const& text, bool indent ) {
-        m_writer->writeText( text, indent );
-        return *this;
-    }
-
-    XmlWriter::XmlWriter( std::ostream& os ) : m_os( os )
-    {
-        // writeDeclaration(); // called explicitly by the reporters that use the writer class - see issue #627
-    }
-
-    XmlWriter::~XmlWriter() {
-        while( !m_tags.empty() )
-            endElement();
-    }
-
-    XmlWriter& XmlWriter::startElement( std::string const& name ) {
-        ensureTagClosed();
-        newlineIfNecessary();
-        m_os << m_indent << '<' << name;
-        m_tags.push_back( name );
-        m_indent += "  ";
-        m_tagIsOpen = true;
-        return *this;
-    }
-
-    XmlWriter::ScopedElement XmlWriter::scopedElement( std::string const& name ) {
-        ScopedElement scoped( this );
-        startElement( name );
-        return scoped;
-    }
-
-    XmlWriter& XmlWriter::endElement() {
-        newlineIfNecessary();
-        m_indent = m_indent.substr( 0, m_indent.size()-2 );
-        if( m_tagIsOpen ) {
-            m_os << "/>";
-            m_tagIsOpen = false;
-        }
-        else {
-            m_os << m_indent << "</" << m_tags.back() << ">";
-        }
-        m_os << std::endl;
-        m_tags.pop_back();
-        return *this;
-    }
-
-    XmlWriter& XmlWriter::writeAttribute( std::string const& name, std::string const& attribute ) {
-        if( !name.empty() && !attribute.empty() )
-            m_os << ' ' << name << "=\"" << XmlEncode( attribute, XmlEncode::ForAttributes ) << '"';
-        return *this;
-    }
-
-    XmlWriter& XmlWriter::writeAttribute( std::string const& name, const char* attribute ) {
-        if( !name.empty() && attribute && attribute[0] != '\0' )
-            m_os << ' ' << name << "=\"" << XmlEncode( attribute, XmlEncode::ForAttributes ) << '"';
-        return *this;
-    }
-
-    XmlWriter& XmlWriter::writeAttribute( std::string const& name, bool attribute ) {
-        m_os << ' ' << name << "=\"" << ( attribute ? "true" : "false" ) << '"';
-        return *this;
-    }
-
-    XmlWriter& XmlWriter::writeText( std::string const& text, bool indent ) {
-        if( !text.empty() ){
-            bool tagWasOpen = m_tagIsOpen;
-            ensureTagClosed();
-            if( tagWasOpen && indent )
-                m_os << m_indent;
-            m_os << XmlEncode( text );
-            m_needsNewline = true;
-        }
-        return *this;
-    }
-
-    //XmlWriter& XmlWriter::writeComment( std::string const& text ) {
-    //    ensureTagClosed();
-    //    m_os << m_indent << "<!--" << text << "-->";
-    //    m_needsNewline = true;
-    //    return *this;
-    //}
-
-    //void XmlWriter::writeStylesheetRef( std::string const& url ) {
-    //    m_os << "<?xml-stylesheet type=\"text/xsl\" href=\"" << url << "\"?>\n";
-    //}
-
-    //XmlWriter& XmlWriter::writeBlankLine() {
-    //    ensureTagClosed();
-    //    m_os << '\n';
-    //    return *this;
-    //}
-
-    void XmlWriter::ensureTagClosed() {
-        if( m_tagIsOpen ) {
-            m_os << ">" << std::endl;
-            m_tagIsOpen = false;
-        }
-    }
-
-    void XmlWriter::writeDeclaration() {
-        m_os << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
-    }
-
-    void XmlWriter::newlineIfNecessary() {
-        if( m_needsNewline ) {
-            m_os << std::endl;
-            m_needsNewline = false;
-        }
-    }
-
-// =================================================================================================
-// End of copy-pasted code from Catch
-// =================================================================================================
-
     // clang-format on
+
+} // namespace detail
+} // namespace doctest
+
+#endif // DOCTEST_CONFIG_DISABLE
+
+#ifndef DOCTEST_CONFIG_DISABLE
+
+namespace doctest {
 
     struct XmlReporter : public IReporter
     {
@@ -5357,6 +5071,14 @@ namespace {
 
     DOCTEST_REGISTER_REPORTER("xml", 0, XmlReporter);
 
+} // namespace doctest
+
+#endif // DOCTEST_CONFIG_DISABLE
+
+#ifndef DOCTEST_CONFIG_DISABLE
+
+namespace doctest {
+
     void fulltext_log_assert_to_stream(std::ostream& s, const AssertData& rb) {
         if((rb.m_at & (assertType::is_throws_as | assertType::is_throws_with)) ==
             0) //!OCLINT bitwise operator in conditional
@@ -5408,6 +5130,12 @@ namespace {
                 s << "  values: " << assertString(rb.m_at) << "( " << rb.m_decomp << " )\n";
         }
     }
+
+} // namespace doctest
+
+#endif // DOCTEST_CONFIG_DISABLE
+
+namespace doctest {
 
     // TODO:
     // - log_message()
@@ -5649,6 +5377,18 @@ namespace {
     };
 
     DOCTEST_REGISTER_REPORTER("junit", 0, JUnitReporter);
+
+} // namespace doctest
+
+#ifdef DOCTEST_CONFIG_NO_UNPREFIXED_OPTIONS
+#define DOCTEST_OPTIONS_PREFIX_DISPLAY DOCTEST_CONFIG_OPTIONS_PREFIX
+#else
+#define DOCTEST_OPTIONS_PREFIX_DISPLAY ""
+#endif
+
+#ifndef DOCTEST_CONFIG_DISABLE
+
+namespace doctest {
 
     struct Whitespace
     {
@@ -6120,6 +5860,22 @@ namespace {
 
     DOCTEST_REGISTER_REPORTER("console", 0, ConsoleReporter);
 
+} // namespace doctest
+
+#endif // DOCTEST_CONFIG_DISABLE
+
+#ifndef DOCTEST_CONFIG_DISABLE
+
+namespace doctest {
+namespace {
+
+#ifdef DOCTEST_PLATFORM_WINDOWS
+#define DOCTEST_OUTPUT_DEBUG_STRING(text) ::OutputDebugStringA(text)
+#else
+    // TODO: integration with XCode and other IDEs
+#define DOCTEST_OUTPUT_DEBUG_STRING(text)
+#endif // Platform
+
 #ifdef DOCTEST_PLATFORM_WINDOWS
     struct DebugOutputWindowReporter : public ConsoleReporter
     {
@@ -6155,6 +5911,15 @@ namespace {
 
     DOCTEST_THREAD_LOCAL std::ostringstream DebugOutputWindowReporter::oss;
 #endif // DOCTEST_PLATFORM_WINDOWS
+
+} // namespace
+} // namespace doctest
+
+#endif // DOCTEST_CONFIG_DISABLE
+
+namespace doctest {
+namespace {
+    using namespace detail;
 
     // the implementation of parseOption()
     bool parseOptionImpl(int argc, const char* const* argv, const char* pattern, String* value) {
@@ -6765,28 +6530,6 @@ DOCTEST_MSVC_SUPPRESS_WARNING_POP
 
     return cleanup_and_return();
 }
-
-DOCTEST_DEFINE_INTERFACE(IReporter)
-
-int IReporter::get_num_active_contexts() { return detail::g_infoContexts.size(); }
-const IContextScope* const* IReporter::get_active_contexts() {
-    return get_num_active_contexts() ? &detail::g_infoContexts[0] : nullptr;
-}
-
-int IReporter::get_num_stringified_contexts() { return detail::g_cs->stringifiedContexts.size(); }
-const String* IReporter::get_stringified_contexts() {
-    return get_num_stringified_contexts() ? &detail::g_cs->stringifiedContexts[0] : nullptr;
-}
-
-namespace detail {
-    void registerReporterImpl(const char* name, int priority, reporterCreatorFunc c, bool isReporter) {
-        if(isReporter)
-            getReporters().insert(reporterMap::value_type(reporterMap::key_type(priority, name), c));
-        else
-            getListeners().insert(reporterMap::value_type(reporterMap::key_type(priority, name), c));
-    }
-} // namespace detail
-
 } // namespace doctest
 
 #endif // DOCTEST_CONFIG_DISABLE
@@ -6962,6 +6705,42 @@ String toString(IsNaN<float> in) { return toString<float>(in); }
 String toString(IsNaN<double> in) { return toString<double>(in); }
 String toString(IsNaN<double long> in) { return toString<double long>(in); }
 
+} // namespace doctest
+
+namespace doctest {
+#ifdef DOCTEST_CONFIG_DISABLE
+
+    int                         IReporter::get_num_active_contexts() { return 0; }
+    const IContextScope* const* IReporter::get_active_contexts() { return nullptr; }
+    int                         IReporter::get_num_stringified_contexts() { return 0; }
+    const String*               IReporter::get_stringified_contexts() { return nullptr; }
+
+    int registerReporter(const char*, int, IReporter*) { return 0; }
+
+#else
+
+    DOCTEST_DEFINE_INTERFACE(IReporter)
+
+    int IReporter::get_num_active_contexts() { return detail::g_infoContexts.size(); }
+    const IContextScope* const* IReporter::get_active_contexts() {
+        return get_num_active_contexts() ? &detail::g_infoContexts[0] : nullptr;
+    }
+
+    int IReporter::get_num_stringified_contexts() { return detail::g_cs->stringifiedContexts.size(); }
+    const String* IReporter::get_stringified_contexts() {
+        return get_num_stringified_contexts() ? &detail::g_cs->stringifiedContexts[0] : nullptr;
+    }
+
+    namespace detail {
+        void registerReporterImpl(const char* name, int priority, reporterCreatorFunc c, bool isReporter) {
+            if(isReporter)
+                getReporters().insert(reporterMap::value_type(reporterMap::key_type(priority, name), c));
+            else
+                getListeners().insert(reporterMap::value_type(reporterMap::key_type(priority, name), c));
+        }
+    } // namespace detail
+
+#endif // DOCTEST_CONFIG_DISABLE
 } // namespace doctest
 
 namespace doctest {
@@ -7480,6 +7259,306 @@ doctest::detail::TestSuite& getCurrentTestSuite() {
     return data;
 }
 } // namespace doctest_detail_test_suite_ns
+
+#endif // DOCTEST_CONFIG_DISABLE
+
+#ifndef DOCTEST_CONFIG_DISABLE
+
+namespace doctest {
+namespace detail {
+
+    // clang-format off
+
+// =================================================================================================
+// The following code has been taken verbatim from Catch2/include/internal/catch_xmlwriter.h/cpp
+// This is done so cherry-picking bug fixes is trivial - even the style/formatting is untouched.
+// =================================================================================================
+
+using uchar = unsigned char;
+
+namespace {
+
+    size_t trailingBytes(unsigned char c) {
+        if ((c & 0xE0) == 0xC0) {
+            return 2;
+        }
+        if ((c & 0xF0) == 0xE0) {
+            return 3;
+        }
+        if ((c & 0xF8) == 0xF0) {
+            return 4;
+        }
+        DOCTEST_INTERNAL_ERROR("Invalid multibyte utf-8 start byte encountered");
+    }
+
+    uint32_t headerValue(unsigned char c) {
+        if ((c & 0xE0) == 0xC0) {
+            return c & 0x1F;
+        }
+        if ((c & 0xF0) == 0xE0) {
+            return c & 0x0F;
+        }
+        if ((c & 0xF8) == 0xF0) {
+            return c & 0x07;
+        }
+        DOCTEST_INTERNAL_ERROR("Invalid multibyte utf-8 start byte encountered");
+    }
+
+    void hexEscapeChar(std::ostream& os, unsigned char c) {
+        std::ios_base::fmtflags f(os.flags());
+        os << "\\x"
+            << std::uppercase << std::hex << std::setfill('0') << std::setw(2)
+            << static_cast<int>(c);
+        os.flags(f);
+    }
+
+} // anonymous namespace
+
+    XmlEncode::XmlEncode( std::string const& str, ForWhat forWhat )
+    :   m_str( str ),
+        m_forWhat( forWhat )
+    {}
+
+    void XmlEncode::encodeTo( std::ostream& os ) const {
+        // Apostrophe escaping not necessary if we always use " to write attributes
+        // (see: https://www.w3.org/TR/xml/#syntax)
+
+        for( std::size_t idx = 0; idx < m_str.size(); ++ idx ) {
+            uchar c = m_str[idx];
+            switch (c) {
+            case '<':   os << "&lt;"; break;
+            case '&':   os << "&amp;"; break;
+
+            case '>':
+                // See: https://www.w3.org/TR/xml/#syntax
+                if (idx > 2 && m_str[idx - 1] == ']' && m_str[idx - 2] == ']')
+                    os << "&gt;";
+                else
+                    os << c;
+                break;
+
+            case '\"':
+                if (m_forWhat == ForAttributes)
+                    os << "&quot;";
+                else
+                    os << c;
+                break;
+
+            default:
+                // Check for control characters and invalid utf-8
+
+                // Escape control characters in standard ascii
+                // see https://stackoverflow.com/questions/404107/why-are-control-characters-illegal-in-xml-1-0
+                if (c < 0x09 || (c > 0x0D && c < 0x20) || c == 0x7F) {
+                    hexEscapeChar(os, c);
+                    break;
+                }
+
+                // Plain ASCII: Write it to stream
+                if (c < 0x7F) {
+                    os << c;
+                    break;
+                }
+
+                // UTF-8 territory
+                // Check if the encoding is valid and if it is not, hex escape bytes.
+                // Important: We do not check the exact decoded values for validity, only the encoding format
+                // First check that this bytes is a valid lead byte:
+                // This means that it is not encoded as 1111 1XXX
+                // Or as 10XX XXXX
+                if (c <  0xC0 ||
+                    c >= 0xF8) {
+                    hexEscapeChar(os, c);
+                    break;
+                }
+
+                auto encBytes = trailingBytes(c);
+                // Are there enough bytes left to avoid accessing out-of-bounds memory?
+                if (idx + encBytes - 1 >= m_str.size()) {
+                    hexEscapeChar(os, c);
+                    break;
+                }
+                // The header is valid, check data
+                // The next encBytes bytes must together be a valid utf-8
+                // This means: bitpattern 10XX XXXX and the extracted value is sane (ish)
+                bool valid = true;
+                uint32_t value = headerValue(c);
+                for (std::size_t n = 1; n < encBytes; ++n) {
+                    uchar nc = m_str[idx + n];
+                    valid &= ((nc & 0xC0) == 0x80);
+                    value = (value << 6) | (nc & 0x3F);
+                }
+
+                if (
+                    // Wrong bit pattern of following bytes
+                    (!valid) ||
+                    // Overlong encodings
+                    (value < 0x80) ||
+                    (                 value < 0x800   && encBytes > 2) || // removed "0x80 <= value &&" because redundant
+                    (0x800 < value && value < 0x10000 && encBytes > 3) ||
+                    // Encoded value out of range
+                    (value >= 0x110000)
+                    ) {
+                    hexEscapeChar(os, c);
+                    break;
+                }
+
+                // If we got here, this is in fact a valid(ish) utf-8 sequence
+                for (std::size_t n = 0; n < encBytes; ++n) {
+                    os << m_str[idx + n];
+                }
+                idx += encBytes - 1;
+                break;
+            }
+        }
+    }
+
+    std::ostream& operator << ( std::ostream& os, XmlEncode const& xmlEncode ) {
+        xmlEncode.encodeTo( os );
+        return os;
+    }
+
+    XmlWriter::ScopedElement::ScopedElement( XmlWriter* writer )
+    :   m_writer( writer )
+    {}
+
+    XmlWriter::ScopedElement::ScopedElement( ScopedElement&& other ) DOCTEST_NOEXCEPT
+    :   m_writer( other.m_writer ){
+        other.m_writer = nullptr;
+    }
+    XmlWriter::ScopedElement& XmlWriter::ScopedElement::operator=( ScopedElement&& other ) DOCTEST_NOEXCEPT {
+        if ( m_writer ) {
+            m_writer->endElement();
+        }
+        m_writer = other.m_writer;
+        other.m_writer = nullptr;
+        return *this;
+    }
+
+
+    XmlWriter::ScopedElement::~ScopedElement() {
+        if( m_writer )
+            m_writer->endElement();
+    }
+
+    XmlWriter::ScopedElement& XmlWriter::ScopedElement::writeText( std::string const& text, bool indent ) {
+        m_writer->writeText( text, indent );
+        return *this;
+    }
+
+    XmlWriter::XmlWriter( std::ostream& os ) : m_os( os )
+    {
+        // writeDeclaration(); // called explicitly by the reporters that use the writer class - see issue #627
+    }
+
+    XmlWriter::~XmlWriter() {
+        while( !m_tags.empty() )
+            endElement();
+    }
+
+    XmlWriter& XmlWriter::startElement( std::string const& name ) {
+        ensureTagClosed();
+        newlineIfNecessary();
+        m_os << m_indent << '<' << name;
+        m_tags.push_back( name );
+        m_indent += "  ";
+        m_tagIsOpen = true;
+        return *this;
+    }
+
+    XmlWriter::ScopedElement XmlWriter::scopedElement( std::string const& name ) {
+        ScopedElement scoped( this );
+        startElement( name );
+        return scoped;
+    }
+
+    XmlWriter& XmlWriter::endElement() {
+        newlineIfNecessary();
+        m_indent = m_indent.substr( 0, m_indent.size()-2 );
+        if( m_tagIsOpen ) {
+            m_os << "/>";
+            m_tagIsOpen = false;
+        }
+        else {
+            m_os << m_indent << "</" << m_tags.back() << ">";
+        }
+        m_os << std::endl;
+        m_tags.pop_back();
+        return *this;
+    }
+
+    XmlWriter& XmlWriter::writeAttribute( std::string const& name, std::string const& attribute ) {
+        if( !name.empty() && !attribute.empty() )
+            m_os << ' ' << name << "=\"" << XmlEncode( attribute, XmlEncode::ForAttributes ) << '"';
+        return *this;
+    }
+
+    XmlWriter& XmlWriter::writeAttribute( std::string const& name, const char* attribute ) {
+        if( !name.empty() && attribute && attribute[0] != '\0' )
+            m_os << ' ' << name << "=\"" << XmlEncode( attribute, XmlEncode::ForAttributes ) << '"';
+        return *this;
+    }
+
+    XmlWriter& XmlWriter::writeAttribute( std::string const& name, bool attribute ) {
+        m_os << ' ' << name << "=\"" << ( attribute ? "true" : "false" ) << '"';
+        return *this;
+    }
+
+    XmlWriter& XmlWriter::writeText( std::string const& text, bool indent ) {
+        if( !text.empty() ){
+            bool tagWasOpen = m_tagIsOpen;
+            ensureTagClosed();
+            if( tagWasOpen && indent )
+                m_os << m_indent;
+            m_os << XmlEncode( text );
+            m_needsNewline = true;
+        }
+        return *this;
+    }
+
+    //XmlWriter& XmlWriter::writeComment( std::string const& text ) {
+    //    ensureTagClosed();
+    //    m_os << m_indent << "<!--" << text << "-->";
+    //    m_needsNewline = true;
+    //    return *this;
+    //}
+
+    //void XmlWriter::writeStylesheetRef( std::string const& url ) {
+    //    m_os << "<?xml-stylesheet type=\"text/xsl\" href=\"" << url << "\"?>\n";
+    //}
+
+    //XmlWriter& XmlWriter::writeBlankLine() {
+    //    ensureTagClosed();
+    //    m_os << '\n';
+    //    return *this;
+    //}
+
+    void XmlWriter::ensureTagClosed() {
+        if( m_tagIsOpen ) {
+            m_os << ">" << std::endl;
+            m_tagIsOpen = false;
+        }
+    }
+
+    void XmlWriter::writeDeclaration() {
+        m_os << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+    }
+
+    void XmlWriter::newlineIfNecessary() {
+        if( m_needsNewline ) {
+            m_os << std::endl;
+            m_needsNewline = false;
+        }
+    }
+
+// =================================================================================================
+// End of copy-pasted code from Catch
+// =================================================================================================
+
+    // clang-format on
+
+} // namespace detail
+} // namespace doctest
 
 #endif // DOCTEST_CONFIG_DISABLE
 
