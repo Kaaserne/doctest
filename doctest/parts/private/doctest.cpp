@@ -217,8 +217,6 @@ namespace {
     };
 #else // DOCTEST_CONFIG_POSIX_SIGNALS || DOCTEST_CONFIG_WINDOWS_SEH
 
-    void reportFatal(const std::string&);
-
 #ifdef DOCTEST_PLATFORM_WINDOWS
 
     struct SignalDefs
@@ -451,39 +449,6 @@ namespace {
 
 } // namespace
 
-namespace {
-    using namespace detail;
-
-    void addAssert(assertType::Enum at) {
-        if((at & assertType::is_warn) == 0) //!OCLINT bitwise operator in conditional
-            g_cs->numAssertsCurrentTest_atomic++;
-    }
-
-    void addFailedAssert(assertType::Enum at) {
-        if((at & assertType::is_warn) == 0) //!OCLINT bitwise operator in conditional
-            g_cs->numAssertsFailedCurrentTest_atomic++;
-    }
-
-#if defined(DOCTEST_CONFIG_POSIX_SIGNALS) || defined(DOCTEST_CONFIG_WINDOWS_SEH)
-    void reportFatal(const std::string& message) {
-        g_cs->failure_flags |= TestCaseFailureReason::Crash;
-
-        DOCTEST_ITERATE_THROUGH_REPORTERS(test_case_exception, {message.c_str(), true});
-
-        while (g_cs->subcaseStack.size()) {
-            g_cs->subcaseStack.pop_back();
-            DOCTEST_ITERATE_THROUGH_REPORTERS(subcase_end, DOCTEST_EMPTY);
-        }
-
-        g_cs->finalizeTestCaseData();
-
-        DOCTEST_ITERATE_THROUGH_REPORTERS(test_case_end, *g_cs);
-
-        DOCTEST_ITERATE_THROUGH_REPORTERS(test_run_end, *g_cs);
-    }
-#endif // DOCTEST_CONFIG_POSIX_SIGNALS || DOCTEST_CONFIG_WINDOWS_SEH
-} // namespace
-
 namespace detail {
 
     void ResultBuilder::translateException() {
@@ -521,42 +486,6 @@ namespace detail {
             (g_cs->currentTest == nullptr || !g_cs->currentTest->m_no_breaks); // break into debugger
     }
 
-    MessageBuilder::MessageBuilder(const char* file, int line, assertType::Enum severity) {
-        m_stream   = tlssPush();
-        m_file     = file;
-        m_line     = line;
-        m_severity = severity;
-    }
-
-    MessageBuilder::~MessageBuilder() {
-        if (!logged)
-            tlssPop();
-    }
-
-    bool MessageBuilder::log() {
-        if (!logged) {
-            m_string = tlssPop();
-            logged = true;
-        }
-
-        DOCTEST_ITERATE_THROUGH_REPORTERS(log_message, *this);
-
-        const bool isWarn = m_severity & assertType::is_warn;
-
-        // warn is just a message in this context so we don't treat it as an assert
-        if(!isWarn) {
-            addAssert(m_severity);
-            addFailedAssert(m_severity);
-        }
-
-        return isDebuggerActive() && !getContextOptions()->no_breaks && !isWarn &&
-            (g_cs->currentTest == nullptr || !g_cs->currentTest->m_no_breaks); // break into debugger
-    }
-
-    void MessageBuilder::react() {
-        if(m_severity & assertType::is_require) //!OCLINT bitwise operator in conditional
-            throwException();
-    }
 } // namespace detail
 } // namespace doctest
 
