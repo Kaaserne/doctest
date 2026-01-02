@@ -256,6 +256,7 @@
     DOCTEST_CLANG_SUPPRESS_WARNING("-Wmissing-braces")                                             \
     DOCTEST_CLANG_SUPPRESS_WARNING("-Wmissing-field-initializers")                                 \
     DOCTEST_CLANG_SUPPRESS_WARNING("-Wunused-member-function")                                     \
+    DOCTEST_CLANG_SUPPRESS_WARNING("-Wunused-function")                                            \
     DOCTEST_CLANG_SUPPRESS_WARNING("-Wnonportable-system-include-path")                            \
     DOCTEST_CLANG_SUPPRESS_WARNING("-Wnrvo")                                                       \
                                                                                                    \
@@ -4132,7 +4133,7 @@ DOCTEST_SUPPRESS_PRIVATE_WARNINGS_PUSH
 #ifndef DOCTEST_CONFIG_DISABLE
 
 namespace doctest {
-namespace {
+inline namespace _ {
     // the int (priority) is part of the key for automatic sorting - sadly one can register a
     // reporter with a duplicate name and a different priority but hopefully that won't happen often :|
     using reporterMap = std::map<std::pair<int, String>, detail::reporterCreatorFunc>;
@@ -4164,7 +4165,7 @@ DOCTEST_SUPPRESS_PRIVATE_WARNINGS_PUSH
 #ifndef DOCTEST_CONFIG_DISABLE
 
 namespace doctest {
-namespace {
+inline namespace _ {
 
     using detail::g_cs;
 
@@ -4666,6 +4667,8 @@ DOCTEST_SUPPRESS_PRIVATE_WARNINGS_PUSH
 #ifndef DOCTEST_CONFIG_DISABLE
 
 namespace doctest {
+
+    using detail::g_cs;
 
     struct Whitespace
     {
@@ -5169,6 +5172,7 @@ namespace {
 
 #define DOCTEST_DEBUG_OUTPUT_REPORTER_OVERRIDE(func, type, arg)                                    \
     void func(type arg) override {                                                                 \
+        using detail::g_no_colors;                                                                 \
         bool with_col = g_no_colors;                                                               \
         g_no_colors   = false;                                                                     \
         ConsoleReporter::func(arg);                                                                \
@@ -6788,7 +6792,7 @@ namespace doctest {
 
     struct XmlReporter : public IReporter
     {
-        XmlWriter xml;
+        detail::XmlWriter xml;
         DOCTEST_DECLARE_MUTEX(mutex)
 
         // caching pointers/references to objects of these types - safe to do
@@ -7047,9 +7051,9 @@ namespace doctest {
     // - more attributes in tags
     struct JUnitReporter : public IReporter
     {
-        XmlWriter xml;
+        detail::XmlWriter xml;
         DOCTEST_DECLARE_MUTEX(mutex)
-        Timer timer;
+        detail::Timer timer;
         std::vector<String> deepestSubcaseStackNames;
 
         struct JUnitTestCaseData
