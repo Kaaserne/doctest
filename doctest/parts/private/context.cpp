@@ -32,8 +32,7 @@ namespace doctest {
 
 #else
 
-namespace {
-    using namespace detail;
+namespace detail {
     // for sorting tests by file/line
     bool fileOrderComparator(const TestCase* lhs, const TestCase* rhs) {
         // this is needed because MSVC gives different case for drive letters
@@ -202,7 +201,7 @@ namespace {
         return false;
     }
 
-} // namespace
+} // namespace detail
 
     Context::Context(int argc, const char* const* argv)
             : p(new detail::ContextState) {
@@ -212,8 +211,8 @@ namespace {
     }
 
     Context::~Context() {
-        if(g_cs == p)
-            g_cs = nullptr;
+        if(detail::g_cs == p)
+            detail::g_cs = nullptr;
         delete p;
     }
 
@@ -379,7 +378,7 @@ namespace {
     // users should query this in their main() and exit the program if true
     bool Context::shouldExit() { return p->exit; }
 
-    void Context::setAsDefaultForAssertsOutOfTestCases() { g_cs = p; }
+    void Context::setAsDefaultForAssertsOutOfTestCases() { detail::g_cs = p; }
 
     void Context::setAssertHandler(detail::assert_handler ah) { p->ah = ah; }
 
